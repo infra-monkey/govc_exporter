@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !noesx
 // +build !noesx
 
 package collector
@@ -222,6 +223,10 @@ func (c *virtualMachineCollector) Update(ch chan<- prometheus.Metric) (err error
 		var poolName string
 		var parents Parents
 
+		chHost := make(chan mo.ManagedEntity)
+		chErr := make(chan error)
+		go getVMHostSystem(c.ctx, c.logger, c.client.Client, item, chHost, chErr)
+
 		pool := getVMPool(c.ctx, c.logger, c.client.Client, item)
 		if pool == nil {
 			parents = getParents(c.ctx, c.logger, c.client.Client, item.ManagedEntity)
@@ -230,11 +235,12 @@ func (c *virtualMachineCollector) Update(ch chan<- prometheus.Metric) (err error
 			parents = getParents(c.ctx, c.logger, c.client.Client, *pool)
 			poolName = pool.Name
 		}
-		host := getVMHostSystem(c.ctx, c.logger, c.client.Client, item)
-		if host == nil {
-			esxName = "NONE"
-		} else {
+
+		select {
+		case host := <-chHost:
 			esxName = host.Name
+		case <-chErr:
+			esxName = "NONE"
 		}
 
 		labelsValues := []string{

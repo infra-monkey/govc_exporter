@@ -132,18 +132,18 @@ func getVMPool(ctx context.Context, logger log.Logger, client *vim25.Client, me 
 	return &entity
 }
 
-func getVMHostSystem(ctx context.Context, logger log.Logger, client *vim25.Client, me mo.VirtualMachine) *mo.ManagedEntity {
+func getVMHostSystem(ctx context.Context, logger log.Logger, client *vim25.Client, me mo.VirtualMachine, ch chan mo.ManagedEntity, chErr chan error) {
 	if me.Summary.Runtime.Host == nil {
-		return nil
+		close(ch)
 	}
 
 	var entity mo.ManagedEntity
 	pc := property.DefaultCollector(client)
 	err := pc.RetrieveOne(ctx, *me.Summary.Runtime.Host, []string{"name", "parent"}, &entity)
 	if err != nil {
-		return nil
+		chErr <- err
 	}
-	return &entity
+	ch <- entity
 }
 
 func b2f(val bool) float64 {
